@@ -1,7 +1,8 @@
 use na::{Vec3, Norm};
-use raytracer::{Ray, ComputeColor};
+use raytracer::Ray;
 use na::Dot;
 use num::traits::Zero;
+use material::Material;
 
 pub trait Intersect {
     fn intersect(&self, &Ray, &mut f64, &mut f64) -> bool;
@@ -17,6 +18,37 @@ pub enum Object {
     Box {
         vmin: Vec3<f64>,
         vmax: Vec3<f64>,
+    }
+}
+
+impl Object {
+    fn get_normal(&self, ray: &Ray, tnear: f64) -> Vec3<f64> {
+        match *self {
+            Object::Box { vmin, vmax } => {
+                let phit = ray.origin + ray.dir * tnear;
+
+                let phit_min = phit - vmin;
+                let phit_max = phit - vmax;
+                let mut nhit = Vec3::zero();
+                let eps = 1e-6;
+                if phit_min.x.abs() < eps { nhit.x = -1. }
+                if phit_min.y.abs() < eps { nhit.y = -1. }
+                if phit_min.z.abs() < eps { nhit.z = -1. }
+                if phit_max.x.abs() < eps { nhit.x = 1. }
+                if phit_max.y.abs() < eps { nhit.y = 1. }
+                if phit_max.z.abs() < eps { nhit.z = 1. }
+                nhit
+            }
+
+            Object::Sphere { center, .. } => {
+                let phit = ray.origin + ray.dir * tnear;
+                let mut nhit = (phit - center).normalize();
+                if ray.dir.dot(&nhit) > 0. {
+                    nhit = -nhit;
+                }
+                nhit
+            }
+        }
     }
 }
 
@@ -77,82 +109,6 @@ impl Intersect for Object {
                 *t0 = tca - thc;
                 *t1 = tca + thc;
                 true
-            }
-        }
-    }
-}
-
-impl ComputeColor for Object {
-    fn compute_color(&self, ray: &Ray, tnear: f64, objs: &Vec<Box<Object>>)
-                     -> Vec3<f64> {
-        match *self {
-            Object::Sphere { center, .. } => {
-
-                let phit = ray.origin + ray.dir * tnear;
-                let mut nhit = (phit - center).normalize();
-                let bias = 1e-4;
-                if ray.dir.dot(&nhit) > 0. {
-                    nhit = -nhit;
-                }
-
-                let mut transmission = 1.0;
-                let light_dir = (Vec3 { x: 0., y: 0., z: 10. } - phit)
-                    .normalize();
-                let light_color = Vec3 { x: 1., y: 1., z: 1. };
-
-                'shadow: for i in 0..objs.len() {
-                    let (mut t0, mut t1): (f64, f64) = (0., 0.);
-                    if objs[i].intersect(&Ray { origin: phit + nhit * bias,
-                                                dir: light_dir },
-                                         &mut t0, &mut t1) {
-                        transmission = 0.0;
-                        break 'shadow;
-                    }
-                }
-                let color: Vec3<f64> = Vec3 { x: 1.0, y: 0., z: 0. }
-                    * transmission
-                    * if nhit.dot(&light_dir) > 0. { nhit.dot(&light_dir) }
-                      else { 0. }
-                    * light_color;
-                color
-            }
-
-            Object::Box { vmin, vmax } => {
-                let phit = ray.origin + ray.dir * tnear;
-
-                let phit_min = phit - vmin;
-                let phit_max = phit - vmax;
-                let mut nhit = Vec3::zero();
-                let eps = 1e-6;
-                if phit_min.x.abs() < eps { nhit.x = -1. }
-                if phit_min.y.abs() < eps { nhit.y = -1. }
-                if phit_min.z.abs() < eps { nhit.z = -1. }
-                if phit_max.x.abs() < eps { nhit.x = 1. }
-                if phit_max.y.abs() < eps { nhit.y = 1. }
-                if phit_max.z.abs() < eps { nhit.z = 1. };
-
-                let mut transmission = 1.0;
-                let light_dir = (Vec3 { x: -5., y: 0., z: 15. } - phit)
-                    .normalize();
-                let light_color = Vec3 { x: 1., y: 1., z: 1. };
-
-                let bias = 1e-4; // to make sure shadow ray won't intersect
-                                 // the object itself
-                'shadow2: for i in 0..objs.len() {
-                    let (mut t0, mut t1): (f64, f64) = (0., 0.);
-                    if objs[i].intersect(&Ray { origin: phit + nhit * bias,
-                                                dir: light_dir },
-                                         &mut t0, &mut t1) {
-                        transmission = 0.0;
-                        break 'shadow2;
-                    }
-                }
-                let color: Vec3<f64> = Vec3 { x: 0.3, y: 0.8, z: 0.8 }
-                    * transmission
-                    * if nhit.dot(&light_dir) > 0. { nhit.dot(&light_dir) }
-                      else { 0. }
-                    * light_color;
-                color
             }
         }
     }

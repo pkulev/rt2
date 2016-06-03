@@ -21,6 +21,7 @@ const CAM_HEIGHT: u32 = 120;
 mod raytracer;
 mod camera;
 mod geometry;
+mod material;
 
 use raytracer::march;
 use camera::CamBuilder;
@@ -152,7 +153,7 @@ fn main() {
                 _ => ()
             }
         }
-        let updated = march(&camera, &objects);
+        let updated = march(&camera, &objects, &lights);
         let mut i = 0;
         for v in updated {
             pixels[i] = (v.x * 255.) as u8;
